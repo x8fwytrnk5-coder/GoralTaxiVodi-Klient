@@ -823,6 +823,15 @@
             </button>
           </div>
 
+		  <!-- Prejazdové body -->
+<div class="field-group" id="waypointsContainer">
+  <div class="field-label-row">
+    <div class="field-label">Prejazdové body</div>
+    <button id="addWaypointBtn" class="btn btn-ghost" type="button">+ Pridať bod</button>
+  </div>
+  <div id="waypointsList"></div>
+</div>
+
           <!-- Cieľ -->
           <div class="field-group">
             <div class="field-label-row">
@@ -1036,7 +1045,8 @@
     const PRICE_RIDE_PER_KM = 0.95;
 
     const DRIVER_PHONE = "+421908442544";
-
+	
+    let waypoints = [];
     let pickupPoint = null;
     let dropoffPoint = null;
     let promoValid = false;
@@ -1150,15 +1160,29 @@
       let approachMeters = 0;
       let rideMeters = 0;
 
-      if (pickupPoint) {
-        const d = await getDistanceMeters(STANOVISTE, pickupPoint);
-        if (d != null) approachMeters = d;
-      }
+   
 
-      if (pickupPoint && dropoffPoint) {
+     if (pickupPoint && dropoffPoint) {
         const d = await getDistanceMeters(pickupPoint, dropoffPoint);
         if (d != null) rideMeters = d;
-      }
+      } 
+// --- Waypoint výpočet jazdy ---
+if (pickupPoint && dropoffPoint && waypoints.length > 0) {
+  let last = pickupPoint;
+  rideMeters = 0; // reset pôvodnej hodnoty
+
+  for (const wp of waypoints) {
+    if (wp.point) {
+      const d = await getDistanceMeters(last, wp.point);
+      if (d != null) rideMeters += d;
+      last = wp.point;
+    }
+  }
+
+  // posledný úsek do cieľa
+  const d = await getDistanceMeters(last, dropoffPoint);
+  if (d != null) rideMeters += d;
+}
 
       const approachKm = approachMeters / 1000;
       const rideKm = rideMeters / 1000;
@@ -1242,6 +1266,11 @@
         map.setView([STANOVISTE.lat, STANOVISTE.lon], 13);
         return;
       }
+	  // ak nie je nástup alebo cieľ, nekreslíme trasu
+if (!pickupPoint || !dropoffPoint) {
+    return;
+}
+
 
       const points = [];
       points.push([STANOVISTE.lat, STANOVISTE.lon]);
@@ -1274,21 +1303,46 @@
         }).addTo(map).bindPopup("Cieľ");
       }
 
-      if (pickupPoint && dropoffPoint) {
-        const url = `https://router.project-osrm.org/route/v1/driving/${pickupPoint.lon},${pickupPoint.lat};${dropoffPoint.lon},${dropoffPoint.lat}?overview=full&geometries=geojson`;
-        const res = await fetch(url);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.routes && data.routes.length) {
-            const coords = data.routes[0].geometry.coordinates.map((c) => [c[1], c[0]]);
-            routeLayer = L.polyline(coords, {
-              color: "#22c55e",
-              weight: 4,
-              opacity: 0.9
-            }).addTo(map);
-          }
-        }
-      }
+ // zostavenie celej trasy
+const routePoints = [];
+
+routePoints.push([pickupPoint.lat, pickupPoint.lon]);
+
+for (const wp of waypoints) {
+  if (wp.point) {
+    routePoints.push([wp.point.lat, wp.point.lon]);
+  }
+}
+
+routePoints.push([dropoffPoint.lat, dropoffPoint.lon]);
+
+// ak nemáme aspoň 2 body, nekreslíme
+if (routePoints.length < 2) {
+  return;
+}
+
+// OSRM request
+const coords = routePoints.map(p => `${p[1]},${p[0]}`).join(";");
+
+const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
+
+const res = await fetch(url);
+if (!res.ok) return;
+
+const data = await res.json();
+if (!data.routes || !data.routes.length) return;
+
+const coordsList = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+
+// vykreslenie trasy
+routeLayer = L.polyline(coordsList, {
+  color: "#22c55e",
+  weight: 4,
+  opacity: 0.9
+}).addTo(map);
+
+map.fitBounds(routeLayer.getBounds(), { padding: [40, 40] });
+  
     }
 
     function setupModeToggle() {
@@ -1330,6 +1384,8 @@
       const promoStatus = document.getElementById("promoStatus");
       const applyPromoBtn = document.getElementById("applyPromoBtn");
       const confirmBtn = document.getElementById("confirmBtn");
+	 const addWaypointBtn = document.getElementById("addWaypointBtn");
+addWaypointBtn.addEventListener("click", addWaypoint); 
       const seniorCheckbox = document.getElementById("seniorCheckbox");
       const useLocationBtn = document.getElementById("useLocationBtn");
       const phoneInput = document.getElementById("phoneInput");
@@ -1568,6 +1624,64 @@
         driverStatusPill.innerHTML = '<span></span> Dokončené';
       });
     }
+	
+	function addWaypoint() {
+  const id = Date.now();
+  waypoints.push({ id, point: null });
+
+  const container = document.getElementById("waypointsList");
+
+  const div = document.createElement("div");
+  div.className = "input-shell";
+  div.style.marginTop = "6px";
+  div.dataset.id = id;
+
+  div.innerHTML = `
+    <span class="input-icon">➡️</span>
+    <input class="input waypointInput" placeholder="Zadaj adresu" autocomplete="off">
+    <div class="suggestions" style="display:none;"></div>
+  `;
+
+  container.appendChild(div);
+
+  setupWaypointInput(div);
+}
+
+function setupWaypointInput(div) {
+  const input = div.querySelector(".waypointInput");
+  const suggestions = div.querySelector(".suggestions");
+  const id = div.dataset.id;
+
+  let timeout = null;
+
+  input.addEventListener("input", () => {
+    const q = input.value.trim();
+    const wp = waypoints.find(w => w.id == id);
+    wp.point = null;
+
+    if (timeout) clearTimeout(timeout);
+    if (!q) {
+      suggestions.style.display = "none";
+      recalcPriceAndRoute();
+      return;
+    }
+
+    timeout = setTimeout(async () => {
+      const results = await searchAddress(q);
+      renderSuggestions(suggestions, results, (item) => {
+        input.value = item.display_name;
+        wp.point = {
+          lat: parseFloat(item.lat),
+          lon: parseFloat(item.lon)
+        };
+        suggestions.style.display = "none";
+        recalcPriceAndRoute();
+      });
+    }, 300);
+  });
+}
+
+
 
     window.addEventListener("load", () => {
       initMap();
