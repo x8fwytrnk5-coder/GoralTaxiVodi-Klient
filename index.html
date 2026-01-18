@@ -1,0 +1,1581 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+  <meta charset="UTF-8" />
+  <title>Objednávka jazdy – Krupina Taxi</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+
+  <style>
+    :root {
+      --bg: #050816;
+      --bg-elevated: #0b1020;
+      --accent: #4ade80;
+      --accent-soft: rgba(74, 222, 128, 0.12);
+      --accent-strong: #22c55e;
+      --danger: #f97373;
+      --text: #f9fafb;
+      --muted: #9ca3af;
+      --border: #1f2933;
+      --input-bg: #020617;
+      --radius-lg: 18px;
+      --radius-md: 12px;
+      --radius-sm: 8px;
+      --shadow-soft: 0 18px 45px rgba(0, 0, 0, 0.65);
+      --shadow-subtle: 0 10px 30px rgba(0, 0, 0, 0.45);
+      --transition-fast: 0.18s ease-out;
+      --transition-med: 0.25s ease-out;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+        "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #111827 0, #020617 45%, #000 100%);
+      color: var(--text);
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .app-shell {
+      width: 100%;
+      max-width: 1120px;
+      background: linear-gradient(145deg, #020617 0, #020617 40%, #020617 100%);
+      border-radius: 26px;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      box-shadow: var(--shadow-soft);
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr);
+      overflow: hidden;
+      position: relative;
+    }
+
+    @media (max-width: 900px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+        max-width: 480px;
+        border-radius: 22px;
+      }
+    }
+
+    .left-pane {
+      padding: 20px 22px 18px;
+      background: radial-gradient(circle at top left, #020617 0, #020617 55%, #020617 100%);
+      border-right: 1px solid rgba(15, 23, 42, 0.9);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    @media (max-width: 900px) {
+      .left-pane {
+        border-right: none;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.9);
+      }
+    }
+
+    .right-pane {
+      background: radial-gradient(circle at top right, #020617 0, #020617 55%, #020617 100%);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .glow-orb {
+      position: absolute;
+      width: 260px;
+      height: 260px;
+      border-radius: 999px;
+      background: radial-gradient(circle, rgba(74, 222, 128, 0.16), transparent 70%);
+      top: -120px;
+      right: -80px;
+      pointer-events: none;
+      filter: blur(1px);
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 4px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-logo {
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 20%, #bbf7d0 0, #22c55e 35%, #16a34a 70%, #052e16 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ecfdf5;
+      font-weight: 700;
+      font-size: 18px;
+      box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.6), 0 10px 25px rgba(22, 163, 74, 0.7);
+    }
+
+    .brand-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .brand-title {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .brand-badge {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+      padding: 2px 7px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      background: rgba(15, 23, 42, 0.7);
+    }
+
+    .eta-chip {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .eta-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.25);
+    }
+
+    .eta-value {
+      color: #e5e7eb;
+      font-weight: 500;
+    }
+
+    .mode-toggle {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      background: rgba(15, 23, 42, 0.9);
+      overflow: hidden;
+      font-size: 11px;
+    }
+
+    .mode-toggle button {
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      padding: 5px 10px;
+      cursor: pointer;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      transition: background var(--transition-fast), color var(--transition-fast);
+    }
+
+    .mode-toggle button.active {
+      background: rgba(34, 197, 94, 0.16);
+      color: #bbf7d0;
+    }
+
+    .card {
+      background: radial-gradient(circle at top left, #020617 0, #020617 55%, #020617 100%);
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(30, 64, 175, 0.4);
+      box-shadow: var(--shadow-subtle);
+      padding: 14px 14px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), transparent 60%);
+      opacity: 0.9;
+      pointer-events: none;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .card-title {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #e5e7eb;
+    }
+
+    .card-subtitle {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .pill {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      color: var(--muted);
+      background: rgba(15, 23, 42, 0.8);
+    }
+
+    .pill-accent {
+      border-color: rgba(74, 222, 128, 0.7);
+      color: #bbf7d0;
+      background: rgba(22, 163, 74, 0.16);
+    }
+
+    .form-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .field-label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .field-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+    }
+
+    .field-hint {
+      font-size: 10px;
+      color: #6b7280;
+    }
+
+    .input-shell {
+      position: relative;
+    }
+
+    .input {
+      width: 100%;
+      padding: 9px 10px 9px 30px;
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(31, 41, 55, 0.9);
+      background: radial-gradient(circle at top left, #020617 0, #020617 60%, #020617 100%);
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+      transition: border-color var(--transition-fast), box-shadow var(--transition-fast),
+        background var(--transition-fast), transform var(--transition-fast);
+    }
+
+    .input::placeholder {
+      color: #4b5563;
+    }
+
+    .input:focus {
+      border-color: rgba(74, 222, 128, 0.9);
+      box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.7), 0 0 0 10px rgba(34, 197, 94, 0.12);
+      background: radial-gradient(circle at top left, #020617 0, #020617 55%, #020617 100%);
+      transform: translateY(-0.5px);
+    }
+
+    .input-icon {
+      position: absolute;
+      left: 9px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 13px;
+      color: #6b7280;
+      pointer-events: none;
+    }
+
+    .suggestions {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      margin-top: 4px;
+      background: #020617;
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(31, 41, 55, 0.95);
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.85);
+      max-height: 210px;
+      overflow: auto;
+      z-index: 20;
+    }
+
+    .suggestion-item {
+      padding: 7px 9px;
+      font-size: 12px;
+      color: #e5e7eb;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      border-bottom: 1px solid rgba(15, 23, 42, 0.9);
+      background: #020617;
+      transition: background var(--transition-fast);
+    }
+
+    .suggestion-item:last-child {
+      border-bottom: none;
+    }
+
+    .suggestion-item:hover {
+      background: #020617;
+    }
+
+    .suggestion-main {
+      font-weight: 500;
+    }
+
+    .suggestion-sub {
+      font-size: 11px;
+      color: #9ca3af;
+    }
+
+    .promo-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .promo-input {
+      flex: 1;
+    }
+
+    .btn {
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      background: radial-gradient(circle at top left, #020617 0, #020617 60%, #020617 100%);
+      color: #e5e7eb;
+      font-size: 12px;
+      padding: 8px 12px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background var(--transition-med), transform var(--transition-fast),
+        box-shadow var(--transition-fast), border-color var(--transition-fast);
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      border-color: rgba(34, 197, 94, 0.9);
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      color: #ecfdf5;
+      box-shadow: 0 12px 30px rgba(22, 163, 74, 0.7);
+      font-weight: 600;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 16px 40px rgba(22, 163, 74, 0.85);
+    }
+
+    .btn-ghost {
+      border-style: dashed;
+      border-color: rgba(148, 163, 184, 0.6);
+      color: var(--muted);
+      font-size: 11px;
+      padding-inline: 10px;
+    }
+
+    .btn-ghost:hover {
+      border-color: rgba(148, 163, 184, 0.9);
+      color: #e5e7eb;
+      background: rgba(15, 23, 42, 0.9);
+    }
+
+    .btn-icon {
+      padding: 7px 9px;
+      border-radius: 999px;
+      font-size: 13px;
+    }
+
+    .btn:active {
+      transform: translateY(0);
+      box-shadow: none;
+    }
+
+    .price-card {
+      margin-top: 4px;
+      padding: 10px 11px;
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(31, 41, 55, 0.95);
+      background: radial-gradient(circle at top left, #020617 0, #020617 60%, #020617 100%);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .price-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #e5e7eb;
+    }
+
+    .price-main {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    .price-main span {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+      margin-left: 4px;
+    }
+
+    .price-tag {
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(22, 163, 74, 0.16);
+      border: 1px solid rgba(34, 197, 94, 0.8);
+      color: #bbf7d0;
+      font-size: 11px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .price-tag small {
+      font-size: 10px;
+      color: #a7f3d0;
+    }
+
+    .price-breakdown {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .price-breakdown span {
+      color: #e5e7eb;
+    }
+
+    .promo-status {
+      font-size: 11px;
+      margin-top: 2px;
+    }
+
+    .promo-status.ok {
+      color: #bbf7d0;
+    }
+
+    .promo-status.bad {
+      color: #fecaca;
+    }
+
+    .footer-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .footer-note {
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .footer-note strong {
+      color: #e5e7eb;
+      font-weight: 500;
+    }
+
+    .senior-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .senior-row input {
+      accent-color: #22c55e;
+    }
+
+    /* Right pane / map */
+
+    #map {
+      flex: 1;
+      min-height: 260px;
+      border-radius: 0 26px 26px 0;
+      overflow: hidden;
+    }
+
+    @media (max-width: 900px) {
+      #map {
+        border-radius: 0 0 22px 22px;
+      }
+    }
+
+    .map-overlay-top {
+      position: absolute;
+      top: 10px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      pointer-events: none;
+      z-index: 500;
+    }
+
+    .map-chip {
+      pointer-events: auto;
+      padding: 6px 9px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.92);
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      color: #e5e7eb;
+      font-size: 11px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      backdrop-filter: blur(10px);
+    }
+
+    .map-chip span {
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .map-chip strong {
+      font-weight: 600;
+      color: #e5e7eb;
+    }
+
+    .map-chip-accent {
+      border-color: rgba(34, 197, 94, 0.9);
+      background: rgba(15, 23, 42, 0.96);
+    }
+
+    .map-overlay-bottom {
+      position: absolute;
+      bottom: 10px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      pointer-events: none;
+      z-index: 500;
+    }
+
+    .map-mini-card {
+      pointer-events: auto;
+      padding: 8px 10px;
+      border-radius: 16px;
+      background: rgba(15, 23, 42, 0.96);
+      border: 1px solid rgba(31, 41, 55, 0.95);
+      color: #e5e7eb;
+      font-size: 11px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      backdrop-filter: blur(10px);
+      max-width: 60%;
+    }
+
+    .map-mini-card span {
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .map-mini-card strong {
+      font-weight: 600;
+    }
+
+    .map-mini-card-right {
+      align-items: flex-end;
+      text-align: right;
+    }
+
+    .badge-live {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: #bbf7d0;
+    }
+
+    .badge-live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: #22c55e;
+      box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.25);
+    }
+
+    .leaflet-control-attribution {
+      display: none;
+    }
+
+    /* Driver panel */
+
+    .driver-panel {
+      position: relative;
+      z-index: 1;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .driver-summary {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 12px;
+      color: #e5e7eb;
+    }
+
+    .driver-summary-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .driver-summary-label {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .driver-actions {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .status-pill {
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      font-size: 11px;
+      color: var(--muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-pill span {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: #facc15;
+    }
+
+    .status-pill.done span {
+      background: #22c55e;
+    }
+
+    .status-pill.done {
+      color: #bbf7d0;
+      border-color: rgba(34, 197, 94, 0.8);
+    }
+
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <div class="left-pane">
+      <div class="glow-orb"></div>
+
+      <div class="header">
+        <div class="brand">
+          <div class="brand-logo">K</div>
+          <div class="brand-text">
+            <div class="brand-title">
+              Krupina Ride
+              <span class="brand-badge">klient / vodič</span>
+            </div>
+            <div class="card-subtitle">Fixné stanovište: Krupina – výpočet v reálnom čase</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+          <div class="mode-toggle">
+            <button id="modeClientBtn" class="active">Klient</button>
+            <button id="modeDriverBtn">Vodič</button>
+          </div>
+          <div class="eta-chip">
+            <div class="eta-dot"></div>
+            <div>Odhad príchodu&nbsp;<span class="eta-value" id="etaLabel">–</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CLIENT PANEL -->
+      <div id="clientPanel" class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Objednávka jazdy</div>
+            <div class="card-subtitle">Vyplň adresu nástupu a cieľa, cena sa prepočíta automaticky.</div>
+          </div>
+        </div>
+
+        <div class="pill-row">
+          <div class="pill pill-accent">0,40 €/km dojazd</div>
+          <div class="pill pill-accent">0,95 €/km s klientom</div>
+          <div class="pill">Promo kód –10 %</div>
+          <div class="pill">Senior 65+ –25 %</div>
+        </div>
+
+        <div class="form-grid">
+          <!-- Nástup -->
+          <div class="field-group">
+            <div class="field-label-row">
+              <div class="field-label">Adresa nástupu</div>
+              <div class="field-hint">od stanovišťa Krupina</div>
+            </div>
+            <div class="input-shell">
+              <span class="input-icon">📍</span>
+              <input
+                id="pickupInput"
+                class="input"
+                type="text"
+                placeholder="Zadaj ulicu, číslo, mesto"
+                autocomplete="off"
+              />
+              <div id="pickupSuggestions" class="suggestions" style="display:none;"></div>
+            </div>
+            <button id="useLocationBtn" class="btn btn-ghost" style="margin-top:4px;align-self:flex-start;">
+              📡 Použiť moju polohu
+            </button>
+          </div>
+
+          <!-- Cieľ -->
+          <div class="field-group">
+            <div class="field-label-row">
+              <div class="field-label">Adresa cieľa</div>
+              <div class="field-hint">od nástupu do cieľa</div>
+            </div>
+            <div class="input-shell">
+              <span class="input-icon">🎯</span>
+              <input
+                id="dropoffInput"
+                class="input"
+                type="text"
+                placeholder="Zadaj ulicu, číslo, mesto"
+                autocomplete="off"
+              />
+              <div id="dropoffSuggestions" class="suggestions" style="display:none;"></div>
+            </div>
+          </div>
+
+          <!-- Telefón -->
+          <div class="field-group">
+            <div class="field-label-row">
+              <div class="field-label">Telefón</div>
+              <div class="field-hint">pre kontakt vodiča</div>
+            </div>
+            <div class="input-shell">
+              <span class="input-icon">📞</span>
+              <input
+                id="phoneInput"
+                class="input"
+                type="tel"
+                placeholder="+421..."
+                autocomplete="tel"
+              />
+            </div>
+          </div>
+
+          <!-- Promo -->
+          <div class="field-group">
+            <div class="field-label-row">
+              <div class="field-label">Promo kód</div>
+              <div class="field-hint">voliteľné</div>
+            </div>
+            <div class="promo-row">
+              <div class="input-shell promo-input">
+                <span class="input-icon">🎁</span>
+                <input
+                  id="promoInput"
+                  class="input"
+                  type="text"
+                  placeholder="Napr. KRUPINA10"
+                  autocomplete="off"
+                />
+              </div>
+              <button id="applyPromoBtn" class="btn btn-ghost">Overiť</button>
+            </div>
+            <div id="promoStatus" class="promo-status"></div>
+          </div>
+
+          <!-- Senior -->
+          <div class="field-group">
+            <label class="senior-row">
+              <input type="checkbox" id="seniorCheckbox" />
+              Senior 65+ (zľava 25 %)
+            </label>
+          </div>
+
+          <!-- Cena -->
+          <div class="price-card">
+            <div class="price-row">
+              <div>
+                <div class="price-main" id="totalPrice">0,00 €<span>vrátane DPH</span></div>
+              </div>
+              <div class="price-tag" id="priceTag">
+                Celková cena
+                <small id="priceTagNote">bez promo kódu</small>
+              </div>
+            </div>
+            <div class="price-breakdown">
+              <div>Dojazd od stanovišťa: <span id="approachPrice">0,00 €</span> <span id="approachKm">(0,0 km)</span></div>
+              <div>Trasa s klientom: <span id="ridePrice">0,00 €</span> <span id="rideKm">(0,0 km)</span></div>
+              <div>Zľava promo kódom: <span id="discountValue">0,00 €</span></div>
+            </div>
+          </div>
+
+          <!-- Akcie -->
+          <div class="footer-actions">
+            <div class="footer-note">
+              <strong>Nezáväzný odhad.</strong><br />
+              Presná cena podľa reálnej trasy.
+            </div>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <a href="tel:+421908442544" class="btn btn-icon" title="Zavolať vodičovi">📞</a>
+              <button id="confirmBtn" class="btn btn-primary">
+                Potvrdiť objednávku
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DRIVER PANEL -->
+      <div id="driverPanel" class="card driver-panel">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Vodič – prijatá objednávka</div>
+            <div class="card-subtitle">Trasa, cena, kontakt na klienta a navigácia cez Mapy.cz.</div>
+          </div>
+          <div id="driverStatusPill" class="status-pill">
+            <span></span> Čaká na potvrdenie
+          </div>
+        </div>
+
+        <div class="driver-summary">
+          <div class="driver-summary-row">
+            <div>
+              <div class="driver-summary-label">Nástup</div>
+              <div id="driverPickupText">–</div>
+            </div>
+            <div>
+              <div class="driver-summary-label">Cieľ</div>
+              <div id="driverDropoffText">–</div>
+            </div>
+          </div>
+          <div class="driver-summary-row">
+            <div>
+              <div class="driver-summary-label">Klient</div>
+              <div id="driverClientPhone">–</div>
+            </div>
+            <div>
+              <div class="driver-summary-label">Cena jazdy</div>
+              <div id="driverPrice">0,00 €</div>
+            </div>
+          </div>
+          <div class="driver-summary-row">
+            <div>
+              <div class="driver-summary-label">Dojazd + trasa</div>
+              <div id="driverDistance">0,0 km</div>
+            </div>
+            <div>
+              <div class="driver-summary-label">Zľavy</div>
+              <div id="driverDiscountInfo">–</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="driver-actions">
+          <div style="display:flex;gap:6px;">
+            <button id="driverCallClientBtn" class="btn btn-icon" title="Zavolať klientovi">📞</button>
+            <button id="driverNavigateBtn" class="btn btn-ghost">🧭 Navigovať cez Mapy.cz</button>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button id="driverAcceptBtn" class="btn btn-ghost">Prijať</button>
+            <button id="driverDoneBtn" class="btn btn-primary">Dokončené</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right pane / map -->
+    <div class="right-pane">
+      <div id="map"></div>
+
+      <div class="map-overlay-top">
+        <div class="map-chip">
+          <span>Stanovište</span>
+          <strong>Krupina</strong>
+        </div>
+        <div class="map-chip map-chip-accent">
+          <span>Režim</span>
+          <strong id="mapModeLabel">sledovanie vozidla</strong>
+        </div>
+      </div>
+
+      <div class="map-overlay-bottom">
+        <div class="map-mini-card">
+          <span>Aktuálna trasa</span>
+          <strong id="miniRouteLabel">Zadaj nástup a cieľ</strong>
+        </div>
+        <div class="map-mini-card map-mini-card-right">
+          <div class="badge-live">
+            <div class="badge-live-dot"></div>
+            LIVE poloha
+          </div>
+          <span>Vozidlo</span>
+          <strong id="miniCarLabel">Čaká na objednávku</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+
+  <script>
+    // Fixné stanovište Krupina (približné centrum)
+    const STANOVISTE = {
+      lat: 48.3500,
+      lon: 19.0600
+    };
+
+    const PROMO_CODE = "KRUPINA10";
+    const PROMO_DISCOUNT = 0.10;
+    const SENIOR_DISCOUNT = 0.25;
+
+    const PRICE_APPROACH_PER_KM = 0.40;
+    const PRICE_RIDE_PER_KM = 0.95;
+
+    const DRIVER_PHONE = "+421908442544";
+
+    let pickupPoint = null;
+    let dropoffPoint = null;
+    let promoValid = false;
+    let seniorActive = false;
+
+    let map, depotMarker, pickupMarker, dropoffMarker, carMarker, routeLayer;
+    let carSimInterval = null;
+
+    let currentMode = "client"; // "client" | "driver"
+    let currentOrder = null; // uložená objednávka pre vodiča
+
+    function formatPrice(value) {
+      return value.toFixed(2).replace(".", ",") + " €";
+    }
+
+    function initMap() {
+      map = L.map("map", {
+        zoomControl: false
+      }).setView([STANOVISTE.lat, STANOVISTE.lon], 13);
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19
+      }).addTo(map);
+
+      depotMarker = L.circleMarker([STANOVISTE.lat, STANOVISTE.lon], {
+        radius: 7,
+        color: "#22c55e",
+        weight: 2,
+        fillColor: "#22c55e",
+        fillOpacity: 0.9
+      }).addTo(map).bindPopup("Stanovište Krupina");
+
+      carMarker = L.marker([STANOVISTE.lat, STANOVISTE.lon], {
+        icon: L.divIcon({
+          className: "",
+          html: '<div style="width:18px;height:18px;border-radius:999px;background:#22c55e;border:2px solid #bbf7d0;box-shadow:0 0 0 4px rgba(34,197,94,0.35);"></div>',
+          iconSize: [18, 18]
+        })
+      }).addTo(map);
+
+      simulateCarAroundDepot();
+    }
+
+    function simulateCarAroundDepot() {
+      if (carSimInterval) clearInterval(carSimInterval);
+      carSimInterval = setInterval(() => {
+        const offsetLat = (Math.random() - 0.5) * 0.01;
+        const offsetLon = (Math.random() - 0.5) * 0.01;
+        const newLat = STANOVISTE.lat + offsetLat;
+        const newLon = STANOVISTE.lon + offsetLon;
+        carMarker.setLatLng([newLat, newLon]);
+        document.getElementById("miniCarLabel").textContent = "Vozidlo pripravené v okolí Krupiny";
+      }, 4000);
+    }
+
+    async function searchAddress(query) {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&q=${encodeURIComponent(
+        query
+      )}`;
+      const res = await fetch(url, {
+        headers: {
+          "Accept-Language": "sk"
+        }
+      });
+      if (!res.ok) return [];
+      return res.json();
+    }
+
+    function renderSuggestions(container, items, onSelect) {
+      container.innerHTML = "";
+      if (!items.length) {
+        container.style.display = "none";
+        return;
+      }
+      items.forEach((item) => {
+        const div = document.createElement("div");
+        div.className = "suggestion-item";
+        const main = document.createElement("div");
+        main.className = "suggestion-main";
+        main.textContent = item.display_name.split(",")[0];
+        const sub = document.createElement("div");
+        sub.className = "suggestion-sub";
+        sub.textContent = item.display_name;
+        div.appendChild(main);
+        div.appendChild(sub);
+        div.addEventListener("click", () => onSelect(item));
+        container.appendChild(div);
+      });
+      container.style.display = "block";
+    }
+
+    async function getDistanceMeters(from, to) {
+      const url = `https://router.project-osrm.org/route/v1/driving/${from.lon},${from.lat};${to.lon},${to.lat}?overview=false`;
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data.routes || !data.routes.length) return null;
+      return data.routes[0].distance;
+    }
+
+    async function recalcPriceAndRoute() {
+      const approachPriceEl = document.getElementById("approachPrice");
+      const ridePriceEl = document.getElementById("ridePrice");
+      const approachKmEl = document.getElementById("approachKm");
+      const rideKmEl = document.getElementById("rideKm");
+      const totalPriceEl = document.getElementById("totalPrice");
+      const discountEl = document.getElementById("discountValue");
+      const etaLabel = document.getElementById("etaLabel");
+      const miniRouteLabel = document.getElementById("miniRouteLabel");
+
+      let approachMeters = 0;
+      let rideMeters = 0;
+
+      if (pickupPoint) {
+        const d = await getDistanceMeters(STANOVISTE, pickupPoint);
+        if (d != null) approachMeters = d;
+      }
+
+      if (pickupPoint && dropoffPoint) {
+        const d = await getDistanceMeters(pickupPoint, dropoffPoint);
+        if (d != null) rideMeters = d;
+      }
+
+      const approachKm = approachMeters / 1000;
+      const rideKm = rideMeters / 1000;
+
+      const approachPrice = approachKm * PRICE_APPROACH_PER_KM;
+      const ridePrice = rideKm * PRICE_RIDE_PER_KM;
+
+      let total = approachPrice + ridePrice;
+      let discount = 0;
+      let discountInfo = [];
+
+      if (promoValid && total > 0) {
+        const d = total * PROMO_DISCOUNT;
+        discount += d;
+        discountInfo.push("-10 % promo");
+      }
+
+      if (seniorActive && total > 0) {
+        const d = total * SENIOR_DISCOUNT;
+        discount += d;
+        discountInfo.push("-25 % senior");
+      }
+
+      if (discount > 0) {
+        total = total - discount;
+      }
+
+      approachPriceEl.textContent = formatPrice(approachPrice || 0);
+      ridePriceEl.textContent = formatPrice(ridePrice || 0);
+      approachKmEl.textContent = `(${(approachKm || 0).toFixed(1).replace(".", ",")} km)`;
+      rideKmEl.textContent = `(${(rideKm || 0).toFixed(1).replace(".", ",")} km)`;
+      discountEl.textContent = formatPrice(discount || 0);
+      totalPriceEl.textContent = formatPrice(total || 0) + " ";
+
+      const priceTagNote = document.getElementById("priceTagNote");
+      if ((promoValid || seniorActive) && total > 0) {
+        priceTagNote.textContent = "po uplatnení zliav";
+      } else {
+        priceTagNote.textContent = "bez zliav";
+      }
+
+      const totalKm = approachKm + rideKm;
+      if (totalKm > 0) {
+        const avgSpeedKmH = 40;
+        const hours = totalKm / avgSpeedKmH;
+        const minutes = Math.round(hours * 60);
+        etaLabel.textContent = minutes + " min";
+      } else {
+        etaLabel.textContent = "–";
+      }
+
+      if (pickupPoint && dropoffPoint) {
+        miniRouteLabel.textContent = "Nástup → cieľ pripravené";
+      } else if (pickupPoint) {
+        miniRouteLabel.textContent = "Zadaný nástup, čaká sa na cieľ";
+      } else {
+        miniRouteLabel.textContent = "Zadaj nástup a cieľ";
+      }
+
+      updateMapRoute();
+
+      // ak existuje objednávka, aktualizuj aj vodičský panel
+      if (currentOrder) {
+        updateDriverPanelFromOrder(currentOrder, {
+          approachKm,
+          rideKm,
+          total,
+          discount,
+          discountInfo: discountInfo.join(", ") || "bez zliav"
+        });
+      }
+    }
+
+    async function updateMapRoute() {
+      if (routeLayer) {
+        map.removeLayer(routeLayer);
+        routeLayer = null;
+      }
+
+      if (!pickupPoint && !dropoffPoint) {
+        map.setView([STANOVISTE.lat, STANOVISTE.lon], 13);
+        return;
+      }
+
+      const points = [];
+      points.push([STANOVISTE.lat, STANOVISTE.lon]);
+      if (pickupPoint) points.push([pickupPoint.lat, pickupPoint.lon]);
+      if (dropoffPoint) points.push([dropoffPoint.lat, dropoffPoint.lon]);
+
+      const bounds = L.latLngBounds(points);
+      map.fitBounds(bounds, { padding: [40, 40] });
+
+      if (pickupMarker) map.removeLayer(pickupMarker);
+      if (dropoffMarker) map.removeLayer(dropoffMarker);
+
+      if (pickupPoint) {
+        pickupMarker = L.marker([pickupPoint.lat, pickupPoint.lon], {
+          icon: L.divIcon({
+            className: "",
+            html: '<div style="width:18px;height:18px;border-radius:999px;background:#38bdf8;border:2px solid #e0f2fe;box-shadow:0 0 0 4px rgba(56,189,248,0.35);"></div>',
+            iconSize: [18, 18]
+          })
+        }).addTo(map).bindPopup("Nástup");
+      }
+
+      if (dropoffPoint) {
+        dropoffMarker = L.marker([dropoffPoint.lat, dropoffPoint.lon], {
+          icon: L.divIcon({
+            className: "",
+            html: '<div style="width:18px;height:18px;border-radius:999px;background:#f97316;border:2px solid #ffedd5;box-shadow:0 0 0 4px rgba(249,115,22,0.35);"></div>',
+            iconSize: [18, 18]
+          })
+        }).addTo(map).bindPopup("Cieľ");
+      }
+
+      if (pickupPoint && dropoffPoint) {
+        const url = `https://router.project-osrm.org/route/v1/driving/${pickupPoint.lon},${pickupPoint.lat};${dropoffPoint.lon},${dropoffPoint.lat}?overview=full&geometries=geojson`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.routes && data.routes.length) {
+            const coords = data.routes[0].geometry.coordinates.map((c) => [c[1], c[0]]);
+            routeLayer = L.polyline(coords, {
+              color: "#22c55e",
+              weight: 4,
+              opacity: 0.9
+            }).addTo(map);
+          }
+        }
+      }
+    }
+
+    function setupModeToggle() {
+      const modeClientBtn = document.getElementById("modeClientBtn");
+      const modeDriverBtn = document.getElementById("modeDriverBtn");
+      const clientPanel = document.getElementById("clientPanel");
+      const driverPanel = document.getElementById("driverPanel");
+      const mapModeLabel = document.getElementById("mapModeLabel");
+
+      function applyMode(mode) {
+        currentMode = mode;
+        if (mode === "client") {
+          modeClientBtn.classList.add("active");
+          modeDriverBtn.classList.remove("active");
+          clientPanel.style.display = "flex";
+          driverPanel.style.display = "none";
+          mapModeLabel.textContent = "sledovanie vozidla";
+        } else {
+          modeClientBtn.classList.remove("active");
+          modeDriverBtn.classList.add("active");
+          clientPanel.style.display = "none";
+          driverPanel.style.display = "flex";
+          mapModeLabel.textContent = "režim vodiča";
+        }
+      }
+
+      modeClientBtn.addEventListener("click", () => applyMode("client"));
+      modeDriverBtn.addEventListener("click", () => applyMode("driver"));
+
+      applyMode("client");
+    }
+
+    function setupInputs() {
+      const pickupInput = document.getElementById("pickupInput");
+      const dropoffInput = document.getElementById("dropoffInput");
+      const pickupSuggestions = document.getElementById("pickupSuggestions");
+      const dropoffSuggestions = document.getElementById("dropoffSuggestions");
+      const promoInput = document.getElementById("promoInput");
+      const promoStatus = document.getElementById("promoStatus");
+      const applyPromoBtn = document.getElementById("applyPromoBtn");
+      const confirmBtn = document.getElementById("confirmBtn");
+      const seniorCheckbox = document.getElementById("seniorCheckbox");
+      const useLocationBtn = document.getElementById("useLocationBtn");
+      const phoneInput = document.getElementById("phoneInput");
+
+      let pickupTimeout = null;
+      let dropoffTimeout = null;
+
+      pickupInput.addEventListener("input", () => {
+        const q = pickupInput.value.trim();
+        pickupPoint = null;
+        if (pickupTimeout) clearTimeout(pickupTimeout);
+        if (!q) {
+          pickupSuggestions.style.display = "none";
+          recalcPriceAndRoute();
+          return;
+        }
+        pickupTimeout = setTimeout(async () => {
+          const results = await searchAddress(q);
+          renderSuggestions(pickupSuggestions, results, (item) => {
+            pickupInput.value = item.display_name;
+            pickupPoint = {
+              lat: parseFloat(item.lat),
+              lon: parseFloat(item.lon)
+            };
+            pickupSuggestions.style.display = "none";
+            recalcPriceAndRoute();
+          });
+        }, 300);
+      });
+
+      dropoffInput.addEventListener("input", () => {
+        const q = dropoffInput.value.trim();
+        dropoffPoint = null;
+        if (dropoffTimeout) clearTimeout(dropoffTimeout);
+        if (!q) {
+          dropoffSuggestions.style.display = "none";
+          recalcPriceAndRoute();
+          return;
+        }
+        dropoffTimeout = setTimeout(async () => {
+          const results = await searchAddress(q);
+          renderSuggestions(dropoffSuggestions, results, (item) => {
+            dropoffInput.value = item.display_name;
+            dropoffPoint = {
+              lat: parseFloat(item.lat),
+              lon: parseFloat(item.lon)
+            };
+            dropoffSuggestions.style.display = "none";
+            recalcPriceAndRoute();
+          });
+        }, 300);
+      });
+
+      document.addEventListener("click", (e) => {
+        if (!pickupSuggestions.contains(e.target) && e.target !== pickupInput) {
+          pickupSuggestions.style.display = "none";
+        }
+        if (!dropoffSuggestions.contains(e.target) && e.target !== dropoffInput) {
+          dropoffSuggestions.style.display = "none";
+        }
+      });
+
+      applyPromoBtn.addEventListener("click", () => {
+        const code = promoInput.value.trim().toUpperCase();
+        if (!code) {
+          promoValid = false;
+          promoStatus.textContent = "Zadaj promo kód.";
+          promoStatus.className = "promo-status bad";
+        } else if (code === PROMO_CODE) {
+          promoValid = true;
+          promoStatus.textContent = "Promo kód je platný. Zľava –10 %.";
+          promoStatus.className = "promo-status ok";
+        } else {
+          promoValid = false;
+          promoStatus.textContent = "Neplatný promo kód.";
+          promoStatus.className = "promo-status bad";
+        }
+        recalcPriceAndRoute();
+      });
+
+      seniorCheckbox.addEventListener("change", () => {
+        seniorActive = seniorCheckbox.checked;
+        recalcPriceAndRoute();
+      });
+
+      useLocationBtn.addEventListener("click", () => {
+        if (!navigator.geolocation) {
+          alert("Tento prehliadač nepodporuje zistenie polohy.");
+          return;
+        }
+        useLocationBtn.disabled = true;
+        useLocationBtn.textContent = "Načítavam polohu...";
+        navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            const lat = pos.coords.latitude;
+            const lon = pos.coords.longitude;
+            pickupPoint = { lat, lon };
+            // reverzné geokódovanie pre zobrazenie adresy
+            try {
+              const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`;
+              const res = await fetch(url, { headers: { "Accept-Language": "sk" } });
+              if (res.ok) {
+                const data = await res.json();
+                pickupInput.value = data.display_name || "Moja poloha";
+              } else {
+                pickupInput.value = "Moja poloha";
+              }
+            } catch {
+              pickupInput.value = "Moja poloha";
+            }
+            useLocationBtn.disabled = false;
+            useLocationBtn.textContent = "📡 Použiť moju polohu";
+            recalcPriceAndRoute();
+          },
+          (err) => {
+            alert("Nepodarilo sa získať polohu.");
+            useLocationBtn.disabled = false;
+            useLocationBtn.textContent = "📡 Použiť moju polohu";
+          }
+        );
+      });
+
+      confirmBtn.addEventListener("click", async () => {
+        if (!pickupPoint || !dropoffPoint) {
+          alert("Najprv zadaj adresu nástupu aj cieľa.");
+          return;
+        }
+        const phone = phoneInput.value.trim();
+        if (!phone) {
+          if (!confirm("Telefón klienta nie je vyplnený. Pokračovať aj tak?")) {
+            return;
+          }
+        }
+
+        // prepočítaj aktuálne hodnoty, aby sme mali čerstvé dáta
+        const approachMeters = pickupPoint ? await getDistanceMeters(STANOVISTE, pickupPoint) : 0;
+        const rideMeters = pickupPoint && dropoffPoint ? await getDistanceMeters(pickupPoint, dropoffPoint) : 0;
+        const approachKm = (approachMeters || 0) / 1000;
+        const rideKm = (rideMeters || 0) / 1000;
+
+        let approachPrice = approachKm * PRICE_APPROACH_PER_KM;
+        let ridePrice = rideKm * PRICE_RIDE_PER_KM;
+        let total = approachPrice + ridePrice;
+        let discount = 0;
+        let discountInfo = [];
+
+        if (promoValid && total > 0) {
+          const d = total * PROMO_DISCOUNT;
+          discount += d;
+          discountInfo.push("-10 % promo");
+        }
+
+        if (seniorActive && total > 0) {
+          const d = total * SENIOR_DISCOUNT;
+          discount += d;
+          discountInfo.push("-25 % senior");
+        }
+
+        if (discount > 0) {
+          total = total - discount;
+        }
+
+        currentOrder = {
+          pickupText: document.getElementById("pickupInput").value.trim(),
+          dropoffText: document.getElementById("dropoffInput").value.trim(),
+          clientPhone: phone || "nezadané",
+          approachKm,
+          rideKm,
+          total,
+          discount,
+          discountInfo: discountInfo.join(", ") || "bez zliav"
+        };
+
+        updateDriverPanelFromOrder(currentOrder, currentOrder);
+
+        alert("Objednávka bola vytvorená (demo). Prepínam do režimu vodiča.");
+        document.getElementById("modeDriverBtn").click();
+      });
+    }
+
+    function updateDriverPanelFromOrder(order, calc) {
+      const driverPickupText = document.getElementById("driverPickupText");
+      const driverDropoffText = document.getElementById("driverDropoffText");
+      const driverClientPhone = document.getElementById("driverClientPhone");
+      const driverPrice = document.getElementById("driverPrice");
+      const driverDistance = document.getElementById("driverDistance");
+      const driverDiscountInfo = document.getElementById("driverDiscountInfo");
+      const driverStatusPill = document.getElementById("driverStatusPill");
+
+      driverPickupText.textContent = order.pickupText || "–";
+      driverDropoffText.textContent = order.dropoffText || "–";
+      driverClientPhone.textContent = order.clientPhone || "–";
+      driverPrice.textContent = formatPrice(calc.total || 0);
+      const totalKm = (calc.approachKm || 0) + (calc.rideKm || 0);
+      driverDistance.textContent = (totalKm || 0).toFixed(1).replace(".", ",") + " km";
+      driverDiscountInfo.textContent = calc.discountInfo || "bez zliav";
+
+      driverStatusPill.classList.remove("done");
+      driverStatusPill.innerHTML = '<span></span> Čaká na potvrdenie';
+    }
+
+    function setupDriverControls() {
+      const driverCallClientBtn = document.getElementById("driverCallClientBtn");
+      const driverNavigateBtn = document.getElementById("driverNavigateBtn");
+      const driverAcceptBtn = document.getElementById("driverAcceptBtn");
+      const driverDoneBtn = document.getElementById("driverDoneBtn");
+      const driverStatusPill = document.getElementById("driverStatusPill");
+
+      driverCallClientBtn.addEventListener("click", () => {
+        if (!currentOrder || !currentOrder.clientPhone || currentOrder.clientPhone === "nezadané") {
+          alert("Telefón klienta nie je k dispozícii.");
+          return;
+        }
+        window.location.href = "tel:" + currentOrder.clientPhone;
+      });
+
+      driverNavigateBtn.addEventListener("click", () => {
+        if (!dropoffPoint) {
+          alert("Cieľ nie je zadaný.");
+          return;
+        }
+        // jednoduché otvorenie Mapy.cz na cieľovej pozícii
+        const lat = dropoffPoint.lat;
+        const lon = dropoffPoint.lon;
+        const url = `https://mapy.cz/zakladni?x=${lon}&y=${lat}&z=15&source=coor&id=${lon}%2C${lat}`;
+        window.open(url, "_blank");
+      });
+
+      driverAcceptBtn.addEventListener("click", () => {
+        driverStatusPill.classList.remove("done");
+        driverStatusPill.innerHTML = '<span style="background:#facc15;"></span> Prijaté';
+      });
+
+      driverDoneBtn.addEventListener("click", () => {
+        driverStatusPill.classList.add("done");
+        driverStatusPill.innerHTML = '<span></span> Dokončené';
+      });
+    }
+
+    window.addEventListener("load", () => {
+      initMap();
+      setupModeToggle();
+      setupInputs();
+      setupDriverControls();
+      recalcPriceAndRoute();
+    });
+  </script>
+</body>
+</html>
